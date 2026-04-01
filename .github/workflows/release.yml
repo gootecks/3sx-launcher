@@ -1,0 +1,88 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-launcher:
+    name: Build Launcher
+    uses: ./.github/workflows/build.yml
+    with:
+      release: true
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-launcher]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Move rolling release tag
+        env:
+          TAG_NAME: rolling-pre-release
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "${TAG_NAME}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${TAG_NAME}" --force
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: rolling-pre-release
+          FULL_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${FULL_SHA:0:7}"
+
+          cat > notes.md <<EOF
+          Automatic launcher release for commit ${FULL_SHA}
+
+          ⚠️ **Disclaimer**: This is a __pre-release__ build. Expect bugs and instability.
+
+          ### Downloads
+          | Platform | Architecture | File |
+          |----------|-------------|------|
+          | Windows | x86_64 | \`3SX-Launcher-${SHORT_SHA}-windows.exe\` |
+          | macOS | Universal | \`3SX-Launcher-${SHORT_SHA}-macos-universal\` |
+          | Linux | x86_64 | \`3SX-Launcher-${SHORT_SHA}-linux-x86_64\` |
+          | Linux | ARM64 | \`3SX-Launcher-${SHORT_SHA}-linux-arm64\` |
+          EOF
+
+          if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            gh release edit "${TAG_NAME}" \
+              --title "${SHORT_SHA}" \
+              --prerelease \
+              --notes-file notes.md
+
+            for asset in $(gh release view "${TAG_NAME}" --json assets --jq '.assets[].name'); do
+              gh release delete-asset "${TAG_NAME}" "${asset}" --yes
+            done
+
+            gh release upload "${TAG_NAME}" release-assets/* --clobber
+          else
+            gh release create "${TAG_NAME}" release-assets/* \
+              --title "${SHORT_SHA}" \
+              --prerelease \
+              --notes-file notes.md
+          fi

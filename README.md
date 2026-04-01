@@ -10,6 +10,12 @@ A custom companion launcher for the **3SX engine** (Street Fighter III: 3rd Stri
 - **Zero-Bloat**: A self-contained, standalone desktop UI weighing only a few megabytes with extremely low RAM usage.
 - **Arcade Aesthetic**: Handcrafted UI with custom animations, typography, and CRT styling.
 
+## Screenshots
+
+![News Feed](docs/assets/news.png)
+![Settings Menu](docs/assets/settings.png)
+![Button Mappings](docs/assets/buttons.png)
+
 ## Architecture Stack
 
 - **Tauri 2** (Rust) for the minimal, highly secure backend.
