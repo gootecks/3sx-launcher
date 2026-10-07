@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use tauri::Emitter;
 
 #[cfg(target_os = "macos")]
-pub const RELEASE_API: &str = "https://api.github.com/repos/gootecks/3sxtra/releases/tags/macos-rolling";
+pub const RELEASE_API: &str = "https://api.github.com/repos/gootecks/3sxtra/releases/latest";
 #[cfg(not(target_os = "macos"))]
 pub const RELEASE_API: &str = "https://api.github.com/repos/gootecks/3sxtra/releases/tags/rolling-pre-release";
 

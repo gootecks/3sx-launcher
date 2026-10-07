@@ -36,10 +36,13 @@ exists, as the engine does).
 
 ## Updater
 
-The updater downloads `3SX-<sha>-macos-universal.zip` engine assets from the
-`gootecks/3sxtra` `macos-rolling` pre-release (see `remote_manifest.json`),
-unpacks them with `ditto` into `<pref>/engine` and strips quarantine. The
-launcher itself updates by replacing the app bundle.
+The updater fetches the latest stable engine from `gootecks/3sxtra` via the
+GitHub Releases API (`/releases/latest`). The
+current stable channel provides a universal `3SX-<sha>-macos-universal.zip`
+(`macos-v0.1.0` as of this writing; future semantic releases are picked up
+automatically). It downloads and expands the archive with `ditto` into
+`<pref>/engine`, then strips quarantine attributes. The launcher itself
+updates by replacing the app bundle.
 
 ## ROM (SF33RD.AFS)
 
