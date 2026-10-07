@@ -59,9 +59,11 @@ Once the Rust linker completes, you will find your output binaries (Executable, 
 
 ## macOS
 
-The engine is a separate `3sx.app`; the launcher does not download it on macOS.
-It uses the newest `3sx.app` (by `Contents/Resources/ENGINE_VERSION`, missing =
-oldest) found in, in order:
+The engine is a separate `3sx.app` that the launcher downloads via its
+updater, pulling the latest stable build from the `gootecks/3sxtra` GitHub
+Releases API (`/releases/latest`, universal `3SX-<sha>-macos-universal.zip`).
+It locates the newest installed `3sx.app` (by
+`Contents/Resources/ENGINE_VERSION`, missing = oldest) found in, in order:
 `~/Library/Application Support/CrowdedStreet/3SX/engine/`, inside the launcher
 bundle at `Contents/Resources/engine/`, beside the launcher app,
 `/Applications`, `~/Applications`. The game is started with `open -n`; its
