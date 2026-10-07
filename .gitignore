@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+# Rust/Tauri build output
+target/
+bun.lock
+
 
 # Editor directories and files
 .vscode/*

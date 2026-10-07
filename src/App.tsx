@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Remapper } from "./components/Remapper";
+import { RomPanel, type RomStatus } from "./components/RomPanel";
 import "./App.css";
 
 
@@ -46,6 +47,8 @@ const SETTING_CATEGORIES: SettingCategory[] = [
       { key: "fullscreen", label: "Fullscreen", type: "bool" },
       { key: "window-width", label: "Window Width", type: "int" },
       { key: "window-height", label: "Window Height", type: "int" },
+      { key: "vsync", label: "VSync", type: "bool" },
+      { key: "skip-intro", label: "Skip Intro", type: "bool" },
     ]
   },
   {
@@ -59,13 +62,54 @@ const SETTING_CATEGORIES: SettingCategory[] = [
         { label: "Integer", value: "integer" },
         { label: "Square Pixels", value: "square-pixels" }
       ]},
+      { key: "hd-stages", label: "HD Stages", type: "bool" },
+      { key: "bezel-enabled", label: "Bezel", type: "bool" },
+      { key: "shader-path", label: "Shader Path", type: "string" },
       { key: "draw-players-above-hud", label: "Players Above HUD", type: "bool" },
+      { key: "renderer", label: "Renderer", type: "select", options: [
+        { label: "OpenGL", value: "gl" },
+        { label: "SDL GPU", value: "gpu" },
+        { label: "SDL Renderer", value: "sdl" },
+        { label: "Classic", value: "classic" }
+      ]},
+      { key: "gpu-driver", label: "GPU Driver", type: "select", options: [
+        { label: "Auto", value: "auto" },
+        { label: "Metal", value: "metal" },
+        { label: "Vulkan", value: "vulkan" }
+      ]},
     ]
   },
   {
-    name: "Gameplay",
+    name: "Netplay",
+    icon: "🌐",
+    settings: [
+      { key: "lobby-display-name", label: "Display Name", type: "string" },
+      { key: "netplay-ft", label: "First To (FT)", type: "int" },
+      { key: "netplay-region-lock", label: "Region Lock", type: "bool" },
+      { key: "netplay-max-ping", label: "Max Ping", type: "int" },
+      { key: "netplay-block-wifi", label: "Block WiFi", type: "bool" },
+      { key: "lobby-auto-connect", label: "Auto Connect Lobby", type: "bool" },
+    ]
+  },
+  {
+    name: "Training",
+    icon: "🥊",
+    settings: [
+      { key: "training-hitboxes", label: "Hitboxes", type: "bool" },
+      { key: "training-pushboxes", label: "Pushboxes", type: "bool" },
+      { key: "training-hurtboxes", label: "Hurtboxes", type: "bool" },
+      { key: "training-advantage", label: "Advantage Data", type: "bool" },
+      { key: "training-stun", label: "Stun Info", type: "bool" },
+      { key: "training-frame-meter", label: "Frame Meter", type: "bool" },
+      { key: "training-inputs", label: "Input Display", type: "bool" },
+    ]
+  },
+  {
+    name: "Mods",
     icon: "🔧",
     settings: [
+      { key: "modded-bgm-enabled", label: "Modded BGM", type: "bool" },
+      { key: "modded-voice-enabled", label: "Modded Voice", type: "bool" },
       { key: "arcade-balance", label: "Arcade Balance", type: "bool" },
     ]
   },
@@ -74,7 +118,7 @@ const SETTING_CATEGORIES: SettingCategory[] = [
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>("news");
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
-    Window: true, Rendering: false, Gameplay: false
+    Window: true, Rendering: false, Netplay: false, Training: false, Mods: false
   });
   const [newsFeed, setNewsFeed] = useState<NewsItem[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -85,6 +129,7 @@ function App() {
   const [isGameInstalled, setIsGameInstalled] = useState(true);
   const [buildDate, setBuildDate] = useState("UNKNOWN");
   const [launcherDate, setLauncherDate] = useState("UNKNOWN");
+  const [romStatus, setRomStatus] = useState<RomStatus | null>(null);
 
   const performUpdate = async () => {
     setStatus("CHECKING FOR UPDATES...");
@@ -133,6 +178,13 @@ function App() {
       }
     } catch {}
 
+    // ROM status: the engine can't start without SF33RD.AFS
+    try {
+      const rom = await invoke<RomStatus>("get_rom_status");
+      setRomStatus(rom);
+      if (!rom.installed && nowInstalled) setStatus("ROM MISSING — IMPORT SF33RD.AFS");
+    } catch {}
+
     setIsUpdating(false);
     setProgress(100);
   };
@@ -148,10 +200,10 @@ function App() {
       setActiveTab(prev => {
         const tabs: Tab[] = ["news", "settings", "controls"];
         const idx = tabs.indexOf(prev);
-        if (e.key === 'q' || e.key === 'Q') {
+        if (e.key === 'q' || e.key === 'Q' || e.key === 'ArrowLeft') {
           return tabs[(idx - 1 + tabs.length) % tabs.length];
         }
-        if (e.key === 'e' || e.key === 'E') {
+        if (e.key === 'e' || e.key === 'E' || e.key === 'ArrowRight') {
           return tabs[(idx + 1) % tabs.length];
         }
         return prev;
@@ -176,10 +228,10 @@ function App() {
         // First run — no config exists yet
       }
 
-      // Fetch live news feeds from commits
+      // Fetch live news feeds
       try {
         const fetchNews = async () => {
-          const res = await fetch("https://api.github.com/repos/crowded-street/3sx/commits?per_page=3");
+          const res = await fetch("https://api.github.com/repos/gootecks/3sxtra/commits?per_page=3");
           if (res.ok) {
             const commits = await res.json();
             const bgImages = [
@@ -244,6 +296,10 @@ function App() {
       } catch {}
 
       setIsGameInstalled(installed);
+      try {
+        setRomStatus(await invoke<RomStatus>("get_rom_status"));
+      } catch {}
+
 
       if (!installed) {
         setStatus("FIRST RUN - DOWNLOAD REQUIRED");
@@ -444,7 +500,7 @@ function App() {
       {/* ⬅️ Arcade Menu Sidebar */}
       <nav className="arcade-sidebar">
         <div className="sidebar-logo">
-          <h1 style={{ fontSize: 48, fontFamily: 'var(--font-header)', fontStyle: 'italic', textTransform: 'uppercase', color: 'var(--accent-yellow)', textShadow: '4px 4px 0 var(--accent-red), 0 0 4px #000', margin: '0 0 50px 0', lineHeight: 0.9 }}>3rd Strike<br/><span style={{ color: '#fff' }}>3SX</span></h1>
+          <h1 style={{ fontSize: 48, fontFamily: 'var(--font-header)', fontStyle: 'italic', textTransform: 'uppercase', color: 'var(--accent-yellow)', textShadow: '4px 4px 0 var(--accent-red), 0 0 4px #000', margin: '0 0 50px 0', lineHeight: 0.9 }}>3rd Strike<br/><span style={{ color: '#fff' }}>3SXtra</span></h1>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <button 
@@ -505,13 +561,15 @@ function App() {
 
       {/* 📄 Main Content */}
       <main className="main-content">
-
         <header className="app-header" data-tauri-drag-region>
         </header>
 
         <h2 className="page-title">{activeTab.replace('_', ' ')}</h2>
 
         <section className="content-panel">
+          {romStatus && !romStatus.installed && (
+            <RomPanel onImported={(rom, summary) => { setRomStatus(rom); setStatus(summary); }} />
+          )}
           {/* ── News ───────────────────────────────── */}
           {activeTab === "news" && (
             <div className="news-feed">
@@ -538,7 +596,7 @@ function App() {
                     </button>
                   </div>
                 </div>
-              ))}
+                ))}
               </div>
             </div>
           )}
