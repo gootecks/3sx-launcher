@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+fnox.local.toml
+mise.local.toml
 # Rust/Tauri build output
 target/
 bun.lock

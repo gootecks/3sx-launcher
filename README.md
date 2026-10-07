@@ -67,6 +67,10 @@ bundle at `Contents/Resources/engine/`, beside the launcher app,
 `/Applications`, `~/Applications`. The game is started with `open -n`; its
 output goes to `~/Library/Application Support/CrowdedStreet/3SX/logs/`.
 
+## Release Notes
+
+Release notes are generated with [Communiqué](https://github.com/jdx/communique) — see [`docs/release-notes.md`](docs/release-notes.md) for usage. This tooling handles notes only; tags, builds, and asset publishing are handled by the CI workflow.
+
 ## Legal
 
 This launcher is an open-source tool built around the 3SX project. 

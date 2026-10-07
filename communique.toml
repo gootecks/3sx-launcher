@@ -1,0 +1,9 @@
+[defaults]
+model = "moonshot/kimi-k2.6"
+max_tokens = 16384
+repo = "gootecks/3sx-launcher"
+provider = "openai"
+base_url = "https://api.llmgateway.io/v1"
+emoji = true
+verify_links = true
+match_style = true

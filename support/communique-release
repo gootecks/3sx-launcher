@@ -1,0 +1,69 @@
+#!/bin/bash
+# communique-release — run communique with LLMGATEWAY_API_KEY
+#
+# Resolves LLMGATEWAY_API_KEY from fnox (release profile), re-exports as
+# LLM_API_KEY for communique, and strips any ambient OPENAI_API_KEY.
+# When --github-release is passed, validates the release exists and
+# sets GITHUB_TOKEN from the environment or gh auth token.
+
+set -euo pipefail
+
+ARGS=("$@")
+
+# Detect --github-release before spending LLM tokens
+GITHUB_RELEASE=false
+for arg in "${ARGS[@]}"; do
+  if [ "$arg" = "--github-release" ]; then
+    GITHUB_RELEASE=true
+    break
+  fi
+done
+
+if [ "$GITHUB_RELEASE" = true ]; then
+  # Extract TAG: first positional arg after the subcommand (skip flags)
+  TAG=""
+  found_subcmd=false
+  for arg in "${ARGS[@]}"; do
+    if [ "$found_subcmd" = false ]; then
+      # First non-flag arg is the subcommand (generate, publish, etc.)
+      if [[ "$arg" != -* ]]; then
+        found_subcmd=true
+      fi
+    else
+      # Next non-flag arg is the TAG
+      if [[ "$arg" != -* ]]; then
+        TAG="$arg"
+        break
+      fi
+    fi
+  done
+
+  if [ -z "$TAG" ]; then
+    echo "ERROR: could not determine tag from arguments" >&2
+    exit 1
+  fi
+  if [ "$TAG" = "HEAD" ]; then
+    echo "ERROR: --github-release cannot be used with HEAD" >&2
+    exit 1
+  fi
+  GITHUB_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+  if [ -z "$GITHUB_TOKEN" ]; then
+    GITHUB_TOKEN=$(gh auth token --hostname github.com 2>/dev/null) || true
+  fi
+  if [ -z "$GITHUB_TOKEN" ]; then
+    echo "ERROR: --github-release requires GITHUB_TOKEN, GH_TOKEN, or 'gh auth login'" >&2
+    exit 1
+  fi
+  export GITHUB_TOKEN
+  gh release view "$TAG" --repo gootecks/3sx-launcher >/dev/null 2>&1 || {
+    echo "ERROR: Release $TAG does not exist. Run the release workflow first." >&2
+    exit 1
+  }
+fi
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LLMGATEWAY_API_KEY="$(fnox exec -c "$REPO_ROOT/fnox.toml" --no-defaults -P release -- printenv LLMGATEWAY_API_KEY)"
+export LLM_API_KEY="$LLMGATEWAY_API_KEY"
+unset OPENAI_API_KEY
+
+exec communique "${ARGS[@]}"

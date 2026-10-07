@@ -1,0 +1,8 @@
+default_provider = "onepass"
+
+[providers.onepass]
+type = "1password"
+vault = "Developer"
+
+[profiles.release.secrets]
+LLMGATEWAY_API_KEY = { provider = "onepass", value = "op://Developer/LLMGateway/communique invoicegen" }
