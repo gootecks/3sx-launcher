@@ -1,79 +1,70 @@
 # 3SX Launcher
 
-A custom companion launcher for the **3SX engine** (Street Fighter III: 3rd Strike Open Port). Built with lightning-fast Rust (Tauri 2) and React, this launcher handles seamless engine updates, input configuration, and game settings—styled with a premium arcade aesthetic.
+A cross-platform companion launcher for the **3SX engine** (Street Fighter III:
+3rd Strike Open Port). Built with Tauri 2 (Rust) + React 19, it handles engine
+discovery, updates, ROM setup, and configuration — presented in a CRT-arcade UI.
+
+## Quick Links
+
+| Doc | Description |
+|-----|-------------|
+| [Features](docs/features.md) | Full walkthrough: tabs, sidebar, play/update, news, ROM, CLI, platform behavior |
+| [Settings](docs/settings.md) | Complete 28-setting reference: type contract, engine consumer, no-op verdicts, workarounds |
+| [macOS Guide](docs/macos.md) | macOS-specific: engine discovery, update, pref paths, building |
+| [Architecture](docs/architecture.md) | Rust backend, Tauri frontend seam, cross-platform deps, CI system |
+| [Architecture Review](docs/architecture-review-20261007-launcher.html) | Visual render of launcher's architecture & Swift-migration overview |
+| [Swift/Migration](docs/swift-migration.md) | Analysis of a macOS Swift/AppKit replacement for the Tauri shell |
+| [Settings Investigation](docs/settings-investigation.md) | Root-cause analysis of why most settings have no effect |
+| [Release Notes](docs/release-notes.md) | Communiqué release-note tooling |
 
 ## Features
 
-- **One-Click Updates**: Directly hooks into the `crowded-street/3sx` GitHub Releases API to fetch, verify, and unpack the latest engine updates.
-- **Native Configuration**: Automatically parses and modifies the official flat `config` key/value system.
-- **Live News Feed**: Automatically pulls recent commit activity to keep players informed on development progress.
-- **Zero-Bloat**: A self-contained, standalone desktop UI weighing only a few megabytes with extremely low RAM usage.
-- **Arcade Aesthetic**: Handcrafted UI with custom animations, typography, and CRT styling.
-
-## Screenshots
-
-![News Feed](docs/assets/news.png)
-![Settings Menu](docs/assets/settings.png)
-![Button Mappings](docs/assets/buttons.png)
-
-## Architecture Stack
-
-- **Tauri 2** (Rust) for the minimal, highly secure backend.
-- **React 19 + TypeScript** for UI state and interactivity.
-- **Vite** for the blistering fast frontend build pipeline.
+- **Engine management**: discovers the latest installed `3sx.app` (macOS) or
+  `3sx` binary (Windows/Linux), fetches engine updates from GitHub Releases.
+- **Settings panel**: 28 engine settings across 5 categories (Window,
+  Rendering, Netplay, Training, Mods) saved to disk on each interaction
+  (most have no effect — see [docs/settings.md](docs/settings.md)).
+- **Button configuration**: SVG arcade-pad remapper for keyboard bindings
+  (p1 only; keyboard-only; **engine-incompatible action/key tokens** — see
+  [docs/settings.md](docs/settings.md)).
+- **News feed**: live commits from the 3SX engine GitHub repo, displayed as
+  cards with Unsplash imagery.
+- **ROM import**: auto-scans for `SF33RD.AFS`, copies from local paths or
+  mounted disc images, verifies integrity via SHA-256.
+- **Frameless window**: custom minimize/maximize/close chrome with
+  keyboard navigation (Q/E or Arrow keys).
+- **Support CLI**: `--diagnose` (JSON discovery dump) and `--launch` (engine
+  without UI).
+- **Cross-platform**: released for macOS (universal), Windows x86_64,
+  Linux x86_64 and ARM64.
 
 ## Getting Started
 
 ### Prerequisites
 
-Ensure you have the following installed:
-- [Node.js](https://nodejs.org/en/) (v20+ recommended)
-- [Rust](https://rustup.rs/) (latest stable)
-- Build tools (Visual Studio Build Tools for Windows, or standard cc/clang for Linux/Mac)
+- [Bun](https://bun.sh/)
+- [Rust](https://rustup.rs/) latest stable
+- Platform build tools (see CI deps in [docs/architecture.md](docs/architecture.md))
 
 ### Development
 
-Install the Node.js frontend dependencies:
-
-```bash
-npm install
+```sh
+bun install
+bun run tauri dev
 ```
 
-Run the launcher in hot-reloading development mode:
-
-```bash
-npm run dev
-```
-
-*Note: In development mode, the launcher will map its root directory based on the `package.json` location and place game files/downloads within the project structure for easy debugging.*
+In dev mode, the game root maps relative to `package.json` in the project tree.
 
 ### Production Build
 
-To compile a highly optimized, statically linked production executable:
-
-```bash
-npm run tauri build
+```sh
+bun run tauri build
 ```
 
-Once the Rust linker completes, you will find your output binaries (Executable, MSI installers) inside `/src-tauri/target/release/`.
-
-## macOS
-
-The engine is a separate `3sx.app` that the launcher downloads via its
-updater, pulling the latest stable build from the `gootecks/3sxtra` GitHub
-Releases API (`/releases/latest`, universal `3SX-<sha>-macos-universal.zip`).
-It locates the newest installed `3sx.app` (by
-`Contents/Resources/ENGINE_VERSION`, missing = oldest) found in, in order:
-`~/Library/Application Support/CrowdedStreet/3SX/engine/`, inside the launcher
-bundle at `Contents/Resources/engine/`, beside the launcher app,
-`/Applications`, `~/Applications`. The game is started with `open -n`; its
-output goes to `~/Library/Application Support/CrowdedStreet/3SX/logs/`.
-
-## Release Notes
-
-Release notes are generated with [Communiqué](https://github.com/jdx/communique) — see [`docs/release-notes.md`](docs/release-notes.md) for usage. This tooling handles notes only; tags, builds, and asset publishing are handled by the CI workflow.
+Output binaries at `src-tauri/target/release/`.
 
 ## Legal
 
-This launcher is an open-source tool built around the 3SX project. 
-All trademarks and properties of Street Fighter III: 3rd Strike belong to their respective owners (Capcom). No copyrighted game assets are included in this repository.
+This launcher is an open-source tool for the 3SX project.
+Street Fighter III: 3rd Strike trademarks belong to Capcom.
+No ROM files or game runtime data are distributed in this repository.
