@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Launcher contracts before Swift</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cpath d='M18 40V24l14-8 14 8v16l-14 8-14-8Z' fill='none' stroke='%23fbbf24' stroke-width='4' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%2338bdf8'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f4f1e9;
+  --surface: #fffdf7;
+  --surface-2: #ebe7dc;
+  --border: #c8c1b1;
+  --text: #252a2a;
+  --text-dim: #636b68;
+  --accent: #ad4f32;
+  --positive: #35745c;
+  --warning: #a36d14;
+  --danger: #a33c3c;
+  --info: #356c8c;
+  --shadow: 0 16px 40px rgba(48, 43, 33, 0.09);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151a19;
+    --surface: #202624;
+    --surface-2: #29302d;
+    --border: #424b47;
+    --text: #f1eee6;
+    --text-dim: #b0b8b3;
+    --accent: #e28564;
+    --positive: #76b99a;
+    --warning: #e3ad55;
+    --danger: #e37a75;
+    --info: #72acd0;
+    --shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  }
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--border) 25%, transparent) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(color-mix(in srgb, var(--border) 25%, transparent) 1px, transparent 1px) 0 0 / 32px 32px,
+    var(--bg);
+  color: var(--text);
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  line-height: 1.55;
+}
+
+main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 52px 0 80px; }
+header { max-width: 800px; margin-bottom: 34px; }
+h1, h2, h3, p { overflow-wrap: anywhere; }
+h1 { margin: 0; font-size: clamp(2.25rem, 7vw, 4.8rem); line-height: .98; letter-spacing: -.055em; text-wrap: balance; }
+h2 { margin: 0; font-size: clamp(1.35rem, 3vw, 2rem); letter-spacing: -.025em; text-wrap: balance; }
+h3 { margin: 0; font-size: 1rem; }
+.subtitle { margin: 15px 0 0; color: var(--accent); font: 500 .78rem/1.5 "Iosevka", "Cascadia Code", monospace; letter-spacing: .08em; text-transform: uppercase; }
+.summary { max-width: 72ch; margin: 18px 0 0; color: var(--text-dim); font-size: 1.08rem; }
+
+.sections { display: grid; gap: 18px; }
+.section {
+  min-width: 0;
+  padding: clamp(20px, 4vw, 34px);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--tone, var(--accent));
+  border-radius: 5px 5px 18px 5px;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: var(--shadow);
+}
+.section[data-tone="positive"] { --tone: var(--positive); }
+.section[data-tone="warning"] { --tone: var(--warning); }
+.section[data-tone="danger"] { --tone: var(--danger); }
+.section[data-tone="info"] { --tone: var(--info); }
+.section[data-tone="neutral"] { --tone: var(--border); }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.section-kicker { flex: none; color: var(--tone, var(--accent)); font: 500 .7rem/1 "Iosevka", "Cascadia Code", monospace; letter-spacing: .12em; }
+.section-summary, .section-subtitle { color: var(--text-dim); }
+.section-subtitle { margin: 5px 0 0; }
+.section-summary { max-width: 76ch; margin: 0 0 20px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; }
+.card, .risk, .callout, .evidence-item {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px 4px 12px 4px;
+  background: var(--surface-2);
+}
+.card[data-tone="positive"], .callout[data-tone="positive"] { border-left: 4px solid var(--positive); }
+.card[data-tone="warning"], .callout[data-tone="warning"] { border-left: 4px solid var(--warning); }
+.card[data-tone="danger"], .callout[data-tone="danger"] { border-left: 4px solid var(--danger); }
+.card[data-tone="info"], .callout[data-tone="info"] { border-left: 4px solid var(--info); }
+.card p, .risk p, .callout p { margin: 7px 0 0; color: var(--text-dim); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chip, .status { padding: 3px 7px; border: 1px solid var(--border); border-radius: 3px; font: 500 .68rem/1.35 "Iosevka", "Cascadia Code", monospace; }
+
+.table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 4px 4px 12px 4px; }
+table { width: 100%; min-width: 520px; border-collapse: collapse; background: var(--surface); }
+caption { padding: 12px 14px; color: var(--text-dim); text-align: left; }
+th, td { padding: 11px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+th { background: var(--surface-2); font: 600 .73rem/1.4 "Iosevka", "Cascadia Code", monospace; letter-spacing: .04em; }
+tr:last-child td { border-bottom: 0; }
+
+.risks, .files, .steps, .callouts, .evidence { display: grid; gap: 10px; }
+.risk { display: grid; grid-template-columns: auto 1fr; gap: 12px; }
+.severity { align-self: start; min-width: 68px; padding: 4px 7px; border-radius: 3px; color: var(--surface); background: var(--warning); font: 600 .68rem/1.35 "Iosevka", "Cascadia Code", monospace; text-align: center; text-transform: uppercase; }
+.risk[data-severity="high"] .severity, .risk[data-severity="critical"] .severity { background: var(--danger); }
+.risk[data-severity="low"] .severity { background: var(--positive); }
+.file, .step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.file:last-child, .step:last-child { border-bottom: 0; }
+.file code { overflow-wrap: anywhere; white-space: normal; }
+.file p, .step p { margin: 3px 0 0; color: var(--text-dim); }
+.index { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--tone, var(--accent)); border-radius: 50%; color: var(--tone, var(--accent)); font: 600 .7rem/1 "Iosevka", "Cascadia Code", monospace; }
+
+.flow { display: grid; gap: 12px; }
+.flow-node { position: relative; min-width: 0; padding: 14px 16px; border: 1px solid var(--border); border-left: 5px solid var(--tone, var(--accent)); border-radius: 3px 3px 12px 3px; background: var(--surface-2); }
+.flow-node p { margin: 4px 0 0; color: var(--text-dim); }
+.flow-edges { display: flex; flex-wrap: wrap; gap: 8px; }
+.flow-edge { color: var(--text-dim); font: 500 .72rem/1.4 "Iosevka", "Cascadia Code", monospace; }
+.flow-edge::before { content: "↳ "; color: var(--accent); }
+.callout { border-left: 4px solid var(--tone, var(--accent)); }
+.evidence { grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); }
+.evidence-value { margin-top: 5px; font-weight: 700; font-size: 1.15rem; }
+.evidence-source { margin-top: 8px; color: var(--text-dim); font: 400 .68rem/1.4 "Iosevka", "Cascadia Code", monospace; }
+
+@media (max-width: 620px) {
+  main { width: min(100% - 20px, 1120px); padding-top: 30px; }
+  .section-head { align-items: flex-start; flex-direction: column-reverse; gap: 8px; }
+  .risk { grid-template-columns: 1fr; }
+  .severity { justify-self: start; }
+}
+
+</style>
+</head>
+<body>
+<main>
+<header><h1>Launcher contracts before Swift</h1><p class="subtitle">3sx-launcher · October 7, 2026</p><p class="summary">Actual game launches reproduced boolean rejection, an unread VSync setting, and exit-time overwrite. A native Swift host is feasible; its build speed has not been measured.</p></header>
+<div class="sections"><section class="section" data-tone="accent"><div class="section-head"><div><h2>Concentrate the engine settings contract</h2><p class="section-subtitle">Strong</p></div><span class="section-kicker">01</span></div><p class="section-summary">The UI, INI writer, and game each assume different value and persistence rules. Successful disk writes do not mean applied or durable game settings.</p><div class="grid"><article class="card" data-tone="accent"><h3>Solution</h3><p>Establish one documented, engine-verified settings contract before porting persistence: exact types and input tokens, startup-only behavior, and explicit ownership while the game runs.</p></article><article class="card" data-tone="accent"><h3>Benefits</h3><p>Fix the existing product rather than copying broken behavior into a new language.</p><div class="meta"><span class="chip">Locality: engine value and lifecycle knowledge in one place</span><span class="chip">Leverage: covers all settings and both native hosts</span><span class="chip">Test surface: real engine effects and durable saves</span></div></article></div><div class="risks"><article class="risk" data-severity="high"><span class="severity">high</span><div><h3>Blast radius</h3><p>All 28 controls and the remapper; training/VSync also need engine-side work. No fixes implemented by this documentation audit.</p></div></article></div><div class="files"><div class="file"><span class="status">reviewed</span><div><code>src/App.tsx</code><p>28 controls; boolean serialization and optimistic state</p></div></div><div class="file"><span class="status">reviewed</span><div><code>src-tauri/src/lib.rs</code><p>Flat config and mapping persistence</p></div></div><div class="file"><span class="status">reviewed</span><div><code>3sxtra/src/port/config/config.c</code><p>Typed startup snapshot and whole-file saves</p></div></div></div><div class="evidence"><article class="evidence-item"><h3>Deletion test</h3><div class="evidence-value">Removing duplicated UI serialization assumptions would concentrate engine knowledge. Merely renaming the Rust persistence function would not.</div></article><article class="evidence-item"><h3>Observed</h3><div class="evidence-value">fullscreen=0 launched Fullscreen:1; correct false enabled windowed 1280×720; width1111 reverted to1280 at game exit.</div></article></div></section><section class="section" data-tone="accent"><div class="section-head"><div><h2>Replace the macOS host with Swift, retaining React</h2><p class="section-subtitle">Worth exploring</p></div><span class="section-kicker">02</span></div><p class="section-summary">The host is filesystem, HTTP, hashing, subprocesses, and a 14-command/one-event frontend interface. No essential Rust-only capability was identified.</p><div class="grid"><article class="card" data-tone="accent"><h3>Solution</h3><p>Port the macOS native responsibilities to Foundation/AppKit/CryptoKit and WKWebView with an explicit new bridge; migrate frontend callers instead of emulating Tauri internals. A full SwiftUI replacement adds the entire UI rewrite.</p></article><article class="card" data-tone="accent"><h3>Benefits</h3><p>Removes the Rust/Tauri macOS host dependency while preserving the current interface design.</p><div class="meta"><span class="chip">Locality: Apple-native operations in the native host</span><span class="chip">Leverage: retain React while changing native implementation</span><span class="chip">Test surface: same engine, ROM, updater, and settings outcomes</span></div></article></div><div class="risks"><article class="risk" data-severity="high"><span class="severity">high</span><div><h3>Blast radius</h3><p>Native bridge, window controls, external links, persistence, updater, ROM import, packaging. AppKit/SwiftUI are macOS-only; retaining Windows/Linux requires separate supported hosts.</p></div></article></div><div class="files"><div class="file"><span class="status">reviewed</span><div><code>src-tauri/src/engine.rs</code><p>Discovery and launch</p></div></div><div class="file"><span class="status">reviewed</span><div><code>src-tauri/src/rom.rs</code><p>ROM discovery/import and streaming hashing</p></div></div><div class="file"><span class="status">reviewed</span><div><code>src-tauri/src/updater.rs</code><p>Download, progress, and native macOS extraction</p></div></div><div class="file"><span class="status">reviewed</span><div><code>.github/workflows/build.yml</code><p>Universal macOS and three non-macOS CI lanes</p></div></div></div><div class="evidence"><article class="evidence-item"><h3>Deletion test</h3><div class="evidence-value">Deleting the macOS Rust host after a complete native port removes a toolchain. Retaining Rust behind Swift would not meet the goal of dropping Rust.</div></article><article class="evidence-item"><h3>CI limitation</h3><div class="evidence-value">Warm macOS compilation measured4m12s; warm Linux ARM64 job7m05s included4m30s dependency installation. No Swift build was measured.</div></article></div></section><section class="section" data-tone="accent"><div class="section-head"><div><h2>Top recommendation</h2></div><span class="section-kicker">03</span></div><p class="section-summary">Repair and exercise the engine settings contract first. If macOS-only becomes the product decision, a Swift/AppKit host retaining React is the smaller clean cutover; otherwise account for the maintained non-macOS backend. Do not promise faster total CI from the current macOS timings alone.</p></section></div>
+</main>
+</body>
+</html>
