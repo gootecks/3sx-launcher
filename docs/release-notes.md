@@ -6,8 +6,8 @@ changelog entries from git history.
 
 **Important:** This tooling manages release *notes* only — it does **not**
 create tags, build binaries, or upload assets.  The CI workflow handles the
-mechanical release process; run these tasks after a tag is pushed or to
-preview what the next release will say.
+mechanical release process; run these tasks after a workflow run finishes to
+replace only the note body.
 
 ## Prerequisites
 
@@ -19,21 +19,44 @@ preview what the next release will say.
 
 ## Workflow
 
-This is separate from the **3sxtra engine** release process.  The launcher's
-release workflow works like this:
+This is separate from the **3sxtra engine** release process.  The launcher
+has two release modes:
 
-1. A `v*` tag push triggers `.github/workflows/release.yml`.
-2. It builds all platform binaries and moves the `rolling-pre-release` tag to
-   the commit, then creates/updates the **rolling-pre-release** GitHub release
-   with a static Downloads table.
-3. The **generated release notes** step is manual — run `mise run release-notes`
-   after the CI workflow finishes to replace only the note body.
+### Rolling pre-release (manual dispatch)
+
+1. Running the workflow via **`workflow_dispatch`** from the GitHub UI
+   triggers `.github/workflows/release.yml`.
+2. It builds all platform binaries and force-moves the `rolling-pre-release`
+   tag to the commit, then creates/updates the **rolling-pre-release** GitHub
+   release (prerelease, not latest).
+3. After the workflow finishes, add LLM-generated notes:
+
+   ```sh
+   mise run release-notes rolling-pre-release
+   mise run release-notes rolling-pre-release <previous-sha-or-tag>
+   ```
+
+### Stable release (tag push)
+
+1. Pushing a `v*` tag (e.g. `v0.1.0`, `v0.2.0`) triggers
+   `.github/workflows/release.yml`.
+2. It builds all platform binaries and creates/updates a **stable** GitHub
+   release at that tag name (latest, non-prerelease).  The rolling tag is
+   **not** moved.
+3. Tags with a semver pre-release suffix (e.g. `v0.1.0-alpha.1`,
+   `v0.1.0-beta.1`) are created as **prereleases** instead of latest stable.
+4. After the workflow finishes, add LLM-generated notes:
+
+   ```sh
+   mise run release-notes v0.1.0
+   mise run release-notes v0.1.0 <previous-tag>
+   ```
 
 The `--preserve-sections` flag keeps the Downloads table and other non-communique
 content intact by only rewriting content between
 `<!-- communique:start -->` / `<!-- communique:end -->` HTML comment markers.
-If no markers exist yet (first run), communique appends a new managed section
-with the generated notes.
+Stable release bodies include these markers from the start; for rolling releases
+they are added on first communique invocation.
 
 ## Secret mapping
 
@@ -59,6 +82,9 @@ mise run preview rolling-pre-release
 # Preview against a specific baseline (narrower range):
 mise run preview rolling-pre-release <previous-sha-or-tag>
 
+# Preview a stable tag range:
+mise run preview v0.1.0 <previous-tag-or-sha>
+
 # Smoke-test with HEAD (no tag, just working tree):
 mise run preview HEAD
 
@@ -69,8 +95,13 @@ support/communique-release generate rolling-pre-release --dry-run --concise
 ### Generate CHANGELOG.md entry
 
 ```sh
+# Rolling:
 mise run changelog rolling-pre-release
 mise run changelog rolling-pre-release 0f5c0f69a3980fe14c7c99806553ce26ee056ce5
+
+# Stable:
+mise run changelog v0.1.0
+mise run changelog v0.1.0 v0.0.1
 ```
 
 The `--concise` flag produces a condensed changelog entry.  The entry is
@@ -78,12 +109,18 @@ appended to `CHANGELOG.md` in the repo root.
 
 ### Update an existing GitHub release
 
-The release must already exist (created by `release.yml` on a `v*` tag push).
-Downloads and assets are preserved by `--preserve-sections`.
+The release must already exist (created by `release.yml` on a `v*` tag push
+or workflow_dispatch).  Downloads and assets are preserved by
+`--preserve-sections`.
 
 ```sh
+# Rolling:
 mise run release-notes rolling-pre-release
 mise run release-notes rolling-pre-release 0f5c0f69a3980fe14c7c99806553ce26ee056ce5
+
+# Stable:
+mise run release-notes v0.1.0
+mise run release-notes v0.1.0 v0.0.1
 ```
 
 The wrapper validates the release exists and sets up `GITHUB_TOKEN` before
@@ -92,14 +129,15 @@ spending any LLM tokens.  Requires `gh auth login` with `repo` scope, or set
 
 ## Tag notes
 
-- The `rolling-pre-release` tag is force-moved by CI on every build; communique
-  references it by name, so the release body is always updated for the latest
-  build.
+- The `rolling-pre-release` tag is force-moved by CI on every
+  `workflow_dispatch`; communique references it by name, so the rolling
+  release body is always updated for the latest build.
+- Stable version tags (`v0.1.0`, `v0.2.0`, …) are permanent — they pin a
+  specific release and are never force-moved.
 - The root commit (`0f5c0f69a3980fe14c7c99806553ce26ee056ce5`) is the default
   PREV baseline for all mise tasks.  This is **cumulative** — it includes the
-  entire project history.  For subsequent stable tags (`v0.2.0`, `v0.3.0`, …),
-  explicitly supply the **actual** previous tag so the generated notes reflect
-  only new changes.
+  entire project history.  For subsequent stable tags, explicitly supply the
+  **actual** previous tag so the generated notes reflect only new changes.
 
 ## Configuration files
 

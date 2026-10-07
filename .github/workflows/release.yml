@@ -29,6 +29,39 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Determine release parameters
+        id: set-env
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          FULL_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${FULL_SHA:0:7}"
+
+          if [[ "${EVENT_NAME}" == "push" ]] && [[ "${REF_TYPE}" == "tag" ]]; then
+            TAG="${REF_NAME}"
+            IS_PRERELEASE="false"
+            # semver prerelease suffix (e.g. v0.1.0-alpha.1)
+            if [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+              IS_PRERELEASE="true"
+            fi
+            {
+              echo "release_tag=${TAG}"
+              echo "release_title=${TAG}"
+              echo "is_prerelease=${IS_PRERELEASE}"
+              echo "is_rolling=false"
+            } >> "${GITHUB_OUTPUT}"
+          else
+            {
+              echo "release_tag=rolling-pre-release"
+              echo "release_title=${SHORT_SHA}"
+              echo "is_prerelease=true"
+              echo "is_rolling=true"
+            } >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Download all release assets
         uses: actions/download-artifact@v4
         with:
@@ -36,25 +69,39 @@ jobs:
           merge-multiple: true
           path: release-assets
 
-      - name: Move rolling release tag
+      - name: Rename assets for stable release
+        if: steps.set-env.outputs.is_rolling == 'false'
         env:
-          TAG_NAME: rolling-pre-release
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f "${TAG_NAME}" "${GITHUB_SHA}"
-          git push origin "refs/tags/${TAG_NAME}" --force
-
-      - name: Create or update GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG_NAME: rolling-pre-release
+          TAG_NAME: ${{ steps.set-env.outputs.release_tag }}
           FULL_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           SHORT_SHA="${FULL_SHA:0:7}"
+          for f in release-assets/*; do
+            base="$(basename "$f")"
+            dir="$(dirname "$f")"
+            newname="${base/${SHORT_SHA}/${TAG_NAME}}"
+            if [[ "${newname}" != "${base}" ]]; then
+              mv "$f" "${dir}/${newname}"
+            fi
+          done
 
+      - name: Move rolling release tag
+        if: steps.set-env.outputs.is_rolling == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f rolling-pre-release "${GITHUB_SHA}"
+          git push origin "refs/tags/rolling-pre-release" --force
+
+      - name: Build release notes (rolling)
+        if: steps.set-env.outputs.is_rolling == 'true'
+        env:
+          FULL_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${FULL_SHA:0:7}"
           cat > notes.md <<EOF
           Automatic launcher release for commit ${FULL_SHA}
 
@@ -69,10 +116,44 @@ jobs:
           | Linux | ARM64 | \`3SX-Launcher-${SHORT_SHA}-linux-arm64\` |
           EOF
 
+      - name: Build release notes (stable)
+        if: steps.set-env.outputs.is_rolling == 'false'
+        env:
+          TAG_NAME: ${{ steps.set-env.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<EOF
+          <!-- communique:start -->
+          <!-- communique:end -->
+
+          ### Downloads
+          | Platform | Architecture | File |
+          |----------|-------------|------|
+          | Windows | x86_64 | \`3SX-Launcher-${TAG_NAME}-windows.exe\` |
+          | macOS | Universal | \`3SX-Launcher-${TAG_NAME}-macos-universal\` |
+          | Linux | x86_64 | \`3SX-Launcher-${TAG_NAME}-linux-x86_64\` |
+          | Linux | ARM64 | \`3SX-Launcher-${TAG_NAME}-linux-arm64\` |
+          EOF
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.set-env.outputs.release_tag }}
+          RELEASE_TITLE: ${{ steps.set-env.outputs.release_title }}
+          IS_PRERELEASE: ${{ steps.set-env.outputs.is_prerelease }}
+        run: |
+          set -euo pipefail
+
+          LATEST="true"
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            LATEST="false"
+          fi
+
           if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
             gh release edit "${TAG_NAME}" \
-              --title "${SHORT_SHA}" \
-              --prerelease \
+              --title "${RELEASE_TITLE}" \
+              --prerelease="${IS_PRERELEASE}" \
+              --latest="${LATEST}" \
               --notes-file notes.md
 
             for asset in $(gh release view "${TAG_NAME}" --json assets --jq '.assets[].name'); do
@@ -82,7 +163,9 @@ jobs:
             gh release upload "${TAG_NAME}" release-assets/* --clobber
           else
             gh release create "${TAG_NAME}" release-assets/* \
-              --title "${SHORT_SHA}" \
-              --prerelease \
+              --title "${RELEASE_TITLE}" \
+              --prerelease="${IS_PRERELEASE}" \
+              --latest="${LATEST}" \
+              --verify-tag \
               --notes-file notes.md
           fi
