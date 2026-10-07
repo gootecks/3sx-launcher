@@ -57,6 +57,16 @@ npm run tauri build
 
 Once the Rust linker completes, you will find your output binaries (Executable, MSI installers) inside `/src-tauri/target/release/`.
 
+## macOS
+
+The engine is a separate `3sx.app`; the launcher does not download it on macOS.
+It uses the newest `3sx.app` (by `Contents/Resources/ENGINE_VERSION`, missing =
+oldest) found in, in order:
+`~/Library/Application Support/CrowdedStreet/3SX/engine/`, inside the launcher
+bundle at `Contents/Resources/engine/`, beside the launcher app,
+`/Applications`, `~/Applications`. The game is started with `open -n`; its
+output goes to `~/Library/Application Support/CrowdedStreet/3SX/logs/`.
+
 ## Legal
 
 This launcher is an open-source tool built around the 3SX project. 

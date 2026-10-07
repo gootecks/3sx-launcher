@@ -1,4 +1,5 @@
-use std::process::Command;
+mod engine;
+
 use std::path::PathBuf;
 use tauri::Emitter;
 use directories::UserDirs;
@@ -86,7 +87,7 @@ fn get_game_root() -> PathBuf {
 /// Preference path — checks for Portable Mode first (sibling "config/" folder
 /// next to game root), then falls back to the standard AppData path that the
 /// engine uses: %APPDATA%/CrowdedStreet/3SX/
-fn get_pref_path() -> PathBuf {
+pub(crate) fn get_pref_path() -> PathBuf {
     let game_root = get_game_root();
 
     // 1. Portable Mode
@@ -133,29 +134,45 @@ fn get_mappings_file_path() -> PathBuf {
 // Game Launch
 // ────────────────────────────────────────────────────────────
 
+/// Engine executable. On macOS this is the binary inside the discovered
+/// `3sx.app` (see engine.rs); elsewhere `<game_root>/3sx[.exe]`.
+fn engine_exe() -> PathBuf {
+    #[cfg(target_os = "macos")]
+    if let Some(app) = engine::find_engine() {
+        return engine::engine_binary(&app);
+    }
+    get_game_root().join(format!("3sx{}", std::env::consts::EXE_SUFFIX))
+}
+
 #[tauri::command]
 fn is_game_installed() -> Result<bool, String> {
-    let game_root = get_game_root();
-    let exe_name = format!("3sx{}", std::env::consts::EXE_SUFFIX);
-    let exe_path = game_root.join(exe_name);
-    Ok(exe_path.exists())
+    Ok(engine_exe().exists())
 }
 
 #[tauri::command]
 fn launch_game() -> Result<String, String> {
-    let game_root = get_game_root();
-    let exe_name = format!("3sx{}", std::env::consts::EXE_SUFFIX);
-    let exe_path = game_root.join(exe_name);
-
-    if !exe_path.exists() {
-        return Err(format!("Game executable not found at: {}", exe_path.display()));
+    #[cfg(target_os = "macos")]
+    {
+        let app = engine::find_engine().ok_or("3sx.app not found. Put 3sx.app next to the launcher or in /Applications.")?;
+        engine::launch(&app, &get_pref_path().join("logs"))?;
+        Ok(format!("Game launched: {}", app.display()))
     }
 
-    Command::new(&exe_path)
-        .current_dir(&game_root)
-        .spawn()
-        .map(|_| "Game launched successfully".to_string())
-        .map_err(|e| format!("Failed to launch game: {}", e))
+    #[cfg(not(target_os = "macos"))]
+    {
+        let game_root = get_game_root();
+        let exe_path = engine_exe();
+
+        if !exe_path.exists() {
+            return Err(format!("Game executable not found at: {}", exe_path.display()));
+        }
+
+        std::process::Command::new(&exe_path)
+            .current_dir(&game_root)
+            .spawn()
+            .map(|_| "Game launched successfully".to_string())
+            .map_err(|e| format!("Failed to launch game: {}", e))
+    }
 }
 
 // ────────────────────────────────────────────────────────────
@@ -285,18 +302,15 @@ async fn check_updates() -> Result<Option<UpdateManifest>, String> {
 
     
     // ── Engine Binary ──────────────────────────────────────────
-    if local_version.trim() != release.created_at.trim() {
-        let os_str = if cfg!(target_os = "windows") {
-            "windows"
-        } else if cfg!(target_os = "macos") {
-            "macos"
-        } else {
-            "linux" 
-        };
+    // macOS ships the engine as a .app bundle (.dmg/.zip) that the flat
+    // extract-into-game-root installer can't place; users install 3sx.app
+    // themselves and the launcher finds it (engine.rs).
+    if !cfg!(target_os = "macos") && local_version.trim() != release.created_at.trim() {
+        let os_str = if cfg!(target_os = "windows") { "windows" } else { "linux" };
         
         if let Some(asset) = release.assets.iter().find(|a| {
             a.name.contains(os_str) && !a.name.contains("Launcher") &&
-            (a.name.ends_with(".zip") || a.name.ends_with(".tar.gz") || a.name.ends_with(".dmg"))
+            (a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
         }) {
             archives.push(ArchiveTask {
                 name: "3SX Core Engine".to_string(),
@@ -321,41 +335,38 @@ fn check_file_exists(path: String) -> Result<bool, String> {
     Ok(get_game_root().join(&path).exists())
 }
 
+/// UTC `YYYY-MM-DD` from seconds since the epoch (Hinnant's civil_from_days).
+fn utc_date(secs: i64) -> String {
+    let z = secs.div_euclid(86400) + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{:04}-{:02}-{:02}", year, month, day)
+}
+
 #[tauri::command]
 fn get_local_version() -> Result<String, String> {
+    // 0. macOS: the discovered engine's ENGINE_VERSION build time
+    #[cfg(target_os = "macos")]
+    if let Some(v) = engine::find_engine().and_then(|app| engine::read_engine_version(&app)) {
+        return Ok(v.built);
+    }
     // 1. Check launcher_version.txt (written by auto-updater downloads)
-    let version_file = get_game_root().join("launcher_version.txt");
-    if version_file.exists() {
-        if let Ok(content) = std::fs::read_to_string(&version_file) {
-            let trimmed = content.trim();
-            if !trimmed.is_empty() {
-                return Ok(trimmed.to_string());
-            }
+    if let Ok(content) = std::fs::read_to_string(get_game_root().join("launcher_version.txt")) {
+        let trimmed = content.trim();
+        if !trimmed.is_empty() {
+            return Ok(trimmed.to_string());
         }
     }
     // 2. Fall back to engine exe modification time (for local builds)
-    let exe_name = format!("3sx{}", std::env::consts::EXE_SUFFIX);
-    let exe_path = get_game_root().join(exe_name);
-    if let Ok(meta) = std::fs::metadata(&exe_path) {
-        if let Ok(modified) = meta.modified() {
-            let duration = modified.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-            let secs = duration.as_secs() as i64;
-            // Simple UTC date calculation (no external deps needed)
-            let days = secs / 86400;
-            let y = (10000 * days + 14780) / 3652425;
-            let doy = days - (365 * y + y / 4 - y / 100 + y / 400);
-            let (y, doy) = if doy < 0 {
-                let y = y - 1;
-                (y, days - (365 * y + y / 4 - y / 100 + y / 400))
-            } else {
-                (y, doy)
-            };
-            let mi = (100 * doy + 52) / 3060;
-            let month = mi + 3 - 12 * (mi / 10);
-            let year = y + mi / 10;
-            let day = doy - (mi * 306 + 5) / 10 + 1;
-            return Ok(format!("{:04}-{:02}-{:02}", year, month, day));
-        }
+    if let Ok(modified) = std::fs::metadata(engine_exe()).and_then(|m| m.modified()) {
+        let secs = modified.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+        return Ok(utc_date(secs));
     }
     Ok("UNKNOWN".to_string())
 }
@@ -541,4 +552,16 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::utc_date;
+
+    #[test]
+    fn utc_date_known_values() {
+        assert_eq!(utc_date(0), "1970-01-01");
+        assert_eq!(utc_date(951_782_400), "2000-02-29");
+        assert_eq!(utc_date(1_791_331_200), "2026-10-07");
+    }
 }
