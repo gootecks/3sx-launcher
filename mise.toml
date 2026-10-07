@@ -1,0 +1,24 @@
+[tools]
+communique = "1.5.0"
+fnox = "1.28.0"
+
+[tasks.preview]
+description = "Preview release notes (dry-run) for TAG [PREV]"
+usage = '''arg "<TAG>" help="Git tag to preview (or HEAD)"
+arg "[PREV]" help="Previous tag or baseline commit" default="0f5c0f69a3980fe14c7c99806553ce26ee056ce5"
+'''
+run = 'support/communique-release generate "{{ usage.tag }}" "{{ usage.prev }}" --dry-run --concise'
+
+[tasks.changelog]
+description = "Generate CHANGELOG.md entry for TAG [PREV]"
+usage = '''arg "<TAG>" help="Git tag to generate changelog for"
+arg "[PREV]" help="Previous tag or baseline commit" default="0f5c0f69a3980fe14c7c99806553ce26ee056ce5"
+'''
+run = 'support/communique-release generate "{{ usage.tag }}" "{{ usage.prev }}" --changelog --concise'
+
+[tasks.release-notes]
+description = "Update existing GitHub release body for TAG [PREV] (preserves Downloads table)"
+usage = '''arg "<TAG>" help="Existing GitHub release tag to update"
+arg "[PREV]" help="Previous tag or baseline commit" default="0f5c0f69a3980fe14c7c99806553ce26ee056ce5"
+'''
+run = 'support/communique-release generate "{{ usage.tag }}" "{{ usage.prev }}" --github-release --preserve-sections'
