@@ -34,7 +34,7 @@ pub fn embedded_engine(launcher_app: &Path) -> PathBuf {
 }
 
 /// Candidate engine locations, in contract order:
-/// 1. `<pref>/engine/3sx.app`
+/// 1. `<pref>/engine/3sx.app` (installed by the launcher updater)
 /// 2. the engine embedded in the launcher bundle
 /// 3. `3sx.app` beside the launcher .app (or beside the bare exe in dev)
 /// 4. `/Applications/3sx.app`
@@ -95,8 +95,11 @@ pub fn pick_engine(candidates: &[PathBuf]) -> Option<PathBuf> {
 /// Discovers the engine for the running launcher.
 pub fn find_engine() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
-    let home = directories::UserDirs::new()?.home_dir().to_path_buf();
-    let candidates = engine_candidate_paths(&exe, &crate::get_pref_path(), &home);
+    let candidates = engine_candidate_paths(
+        &exe,
+        &crate::paths::standard_pref_path(),
+        &crate::paths::home_dir(),
+    );
     pick_engine(&candidates)
 }
 
